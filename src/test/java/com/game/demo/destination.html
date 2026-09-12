@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>观测局 - 异常频段 #814</title>
+    <style>
+        :root { --bg: #030303; --text-main: #00ff41; --text-sys: #ff3333; --font: 'Courier New', Courier, monospace; }
+        body {
+            background-color: var(--bg); color: var(--text-main); font-family: var(--font);
+            margin: 0; padding: 20px; overflow: hidden; display: flex; flex-direction: column; align-items: center;
+            height: 100vh; box-sizing: border-box;
+            background-image: linear-gradient(rgba(0, 255, 0, 0.02) 1px, transparent 1px);
+            background-size: 100% 3px; transition: background-color 0.5s ease; user-select: none;
+        }
+
+        #terminal {
+            width: 100%; max-width: 600px; height: 35vh; overflow-y: auto; margin-bottom: 20px;
+            line-height: 1.6; font-size: 14px; text-shadow: 0 0 5px rgba(0, 255, 65, 0.4); pointer-events: none;
+        }
+        #terminal p { margin: 8px 0; }
+        .sys-msg { color: var(--text-sys); font-weight: bold; text-shadow: 0 0 5px rgba(255, 51, 51, 0.5); }
+        .agent-msg { color: #fff; text-shadow: 0 0 5px rgba(255, 255, 255, 0.5); }
+        .dim-msg { color: #888; text-shadow: none; }
+
+        #interactive-area {
+            width: 100%; max-width: 600px; height: 45vh; border: 1px solid rgba(0, 255, 65, 0.3);
+            position: relative; display: none; justify-content: center; align-items: center;
+            background: rgba(0, 255, 65, 0.02); overflow: hidden; perspective: 800px; cursor: pointer;
+        }
+
+        /* Node 1: 3D 镂空球体 */
+        #scene-3d {
+            width: 100%; height: 100%; position: relative; transform-style: preserve-3d;
+            transition: transform 0.1s ease-out; display: flex; justify-content: center; align-items: center;
+        }
+        #sphere-container {
+            position: absolute; width: 220px; height: 220px; transform-style: preserve-3d;
+            transform: translateZ(80px); pointer-events: none;
+        }
+        .ring {
+            position: absolute; width: 100%; height: 100%; border-radius: 50%;
+            border: 35px solid #111; box-sizing: border-box; box-shadow: inset 0 0 15px #000, 0 0 15px #000;
+        }
+        .ring:nth-child(1) { transform: rotateY(0deg); }
+        .ring:nth-child(2) { transform: rotateY(60deg); border-color: #0a0a0a; }
+        .ring:nth-child(3) { transform: rotateY(120deg); }
+        .ring:nth-child(4) { transform: rotateX(90deg); border-color: #151515; }
+
+        #hidden-password {
+            position: absolute; font-size: 38px; font-weight: bold; color: var(--text-main);
+            letter-spacing: 5px; transform: translateZ(-20px); text-shadow: 0 0 15px var(--text-main); pointer-events: none;
+        }
+        #n1-input {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.8); border: 1px solid var(--text-main); color: var(--text-main);
+            text-align: center; padding: 10px; font-family: var(--font); outline: none; z-index: 20; width: 150px;
+        }
+
+        #inventory {
+            position: absolute; top: 10px; left: 10px; display: none;
+            font-size: 12px; color: #aaa; z-index: 30; pointer-events: none;
+        }
+
+        /* 结局 & BE 屏 */
+        #outro-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000;
+            z-index: 100; display: none; overflow: hidden; box-sizing: border-box; cursor: pointer;
+        }
+        .official-report {
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            width: 100%; height: 100%; padding: 20px; box-sizing: border-box; z-index: 101; pointer-events: none;
+        }
+
+        .btn-group { position: absolute; bottom: 30px; display: flex; gap: 10px; z-index: 50; display: none; }
+        .action-btn { background: #000; border: 1px solid var(--text-main); color: var(--text-main); padding: 10px; font-family: var(--font); cursor: pointer; }
+        .action-btn.danger { border-color: var(--text-sys); color: var(--text-sys); }
+
+        .glitch-active { animation: glitch 0.1s infinite; }
+        .glitch-heavy { animation: glitchHeavy 0.05s infinite; color: var(--text-sys) !important;}
+        @keyframes glitch { 0% { transform: translate(0); } 25% { transform: translate(-2px, 2px); } 75% { transform: translate(2px, -2px); } 100% { transform: translate(0); } }
+        @keyframes glitchHeavy { 0% { transform: translate(0); } 20% { transform: translate(-8px, 8px); } 40% { transform: translate(8px, -10px); } 60% { transform: translate(-10px, 8px); } 80% { transform: translate(10px, -8px); } 100% { transform: translate(0); } }
+
+        #start-btn {
+            padding: 15px 30px; background: transparent; border: 1px solid var(--text-main);
+            color: var(--text-main); cursor: pointer; margin-top: 35vh; font-family: var(--font); font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+
+<button id="start-btn">[ 接入频段 & 初始化观测协议 ]</button>
+<div id="terminal" style="display:none;"></div>
+
+<div id="interactive-area">
+    <div id="inventory">已提取协议：<br><span id="inv-list">无</span></div>
+    <div id="scene-3d" style="display:none;">
+        <div id="hidden-password">Z-AXIS</div>
+        <div id="sphere-container">
+            <div class="ring"></div>
+            <div class="ring"></div>
+            <div class="ring"></div>
+            <div class="ring"></div>
+        </div>
+        <input type="text" id="n1-input" placeholder="输入底层坐标..." autocomplete="off">
+    </div>
+    <div class="btn-group" id="use-btns">
+        <button class="action-btn" id="btn-logic" style="display:none;">注入 [0x8逻辑权限]</button>
+        <button class="action-btn danger" id="btn-poison" style="display:none;">注入 [d熵增毒剂]</button>
+    </div>
+</div>
+
+<div id="outro-screen"></div>
+
+<script>
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playBeep(freq = 600, duration = 0.05) {
+        if(audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+        osc.type = 'square'; osc.frequency.value = freq;
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(); gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + duration);
+        setTimeout(() => osc.stop(), duration * 1000);
+    }
+
+    document.body.addEventListener('click', () => { if(audioCtx.state==='suspended') audioCtx.resume(); }, {once: true});
+
+    const terminal = document.getElementById('terminal');
+    const interactiveArea = document.getElementById('interactive-area');
+
+    async function typeText(text, className = "", speed = 40) {
+        const p = document.createElement('p'); p.className = className; terminal.appendChild(p);
+        for (let i = 0; i < text.length; i++) {
+            p.innerHTML += text.charAt(i);
+            if (text.charAt(i) !== ' ' && text.charAt(i) !== '。') playBeep(800 + Math.random()*100, 0.02);
+            terminal.scrollTop = terminal.scrollHeight;
+            await new Promise(r => setTimeout(r, speed));
+        }
+        await new Promise(r => setTimeout(r, 200));
+    }
+
+    // ==========================================
+    // 状态管理与防闪退超级历史锚点
+    // ==========================================
+    let phase = sessionStorage.getItem('phase') || 'start';
+    let inventory = JSON.parse(sessionStorage.getItem('inventory') || '[]');
+    const timelines = ['0', 'd', '13', '0x8', '404'];
+    let currentTL = sessionStorage.getItem('tl') || null;
+
+    let navType = performance.getEntriesByType("navigation")[0]?.type;
+
+    if (phase === 'maze' && navType === 'reload') {
+        currentTL = timelines[Math.floor(Math.random() * timelines.length)];
+        sessionStorage.setItem('tl', currentTL);
+    }
+
+    function updateInventory() {
+        document.getElementById('inventory').style.display = 'block';
+        document.getElementById('inv-list').innerText = inventory.length ? inventory.join('\n') : '无';
+    }
+
+    window.onload = () => {
+        if (phase === 'start') {
+            document.getElementById('start-btn').onclick = initGame;
+        } else if (phase === 'maze') {
+            document.getElementById('start-btn').style.display = 'none';
+            terminal.style.display = 'block';
+            injectHistoryTrap(); // 迷宫阶段强制注入防退历史
+            runTimelineMaze(currentTL);
+        } else if (phase === 'be') {
+            // BE阶段如果刷新（重置），直接恢复
+            recoverFromBE();
+        } else if (phase === 'ready_to_end') {
+            // 如果在这阶段刷新了，直接给真结局
+            triggerTrueEnding();
+        }
+    };
+
+    // 强力历史记录注入，防止部分浏览器侧滑直接关闭页面
+    function injectHistoryTrap() {
+        if(window.location.hash !== "#play") {
+            window.location.hash = "play"; // 创造物理锚点
+        }
+        for(let i=0; i<10; i++) history.pushState({ trap: i }, "");
+    }
+
+    function initGame() {
+        audioCtx.resume();
+        injectHistoryTrap();
+        if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+            DeviceOrientationEvent.requestPermission().then(state => {
+                if (state === 'granted') window.addEventListener('deviceorientation', handleOrientation);
+            }).catch(e => console.log("Gyro fallback to drag."));
+        } else {
+            window.addEventListener('deviceorientation', handleOrientation);
+        }
+        document.getElementById('start-btn').style.display = 'none';
+        terminal.style.display = 'block';
+        startGame();
+    }
+
+    // 监听返回键 / 侧滑手势
+    window.onpopstate = async (event) => {
+        history.pushState({ trap: 99 }, ""); // 继续困住玩家，防止退回桌面
+
+        // 【关键修复点】：这里要直接判断当前内存里的 phase 变量，不能被写死！
+        if (phase === 'be') {
+            // 正常是通过刷新来重置，但如果玩家按了返回，也算一种“往回走”的重置
+            recoverFromBE();
+        } else if (phase === 'ready_to_end') {
+            triggerTrueEnding();
+        } else if (phase === 'maze') {
+            await typeText("“不能乱走！时间线的潮汐会把我们撕碎。继续寻找出路！”", "dim-msg");
+        }
+    };
+
+    async function startGame() {
+        await typeText("【警告：隔离域遭到外部信号穿透】", "sys-msg");
+        await typeText("“观测局的救援小队？！太好了！我是外勤特工E！”", "agent-msg");
+        await typeText("“今天算我倒霉，被派到这种鸟不拉屎的异常空域执行观测，然后被困在这片高维空域里了。这个空域很奇怪，它没有任何物质实体，完全由异常认知构成。”", "agent-msg");
+        await typeText("“它似乎没有自己的运行逻辑，必须依靠外部思维和实体行动的介入，才能产生具象化映射。”", "agent-msg");
+        await typeText("“第一道屏障就在眼前。这是一个三维屏蔽体，从内部看毫无死角。”", "agent-msg");
+        await typeText("“我需要你们救援队启用高权限维度，绕过它！透过缝隙寻找底层坐标！”", "agent-msg");
+        startNode1();
+    }
+
+    // --- 节点 1：3D 镂空球体 & 陀螺仪 ---
+    const scene = document.getElementById('scene-3d');
+    let baseBeta = null, baseGamma = null;
+
+    function handleOrientation(e) {
+        if(scene.style.display === 'none') return;
+        if(baseBeta === null) { baseBeta = e.beta; baseGamma = e.gamma; }
+        let bDiff = (e.beta - baseBeta) * 2; let gDiff = (e.gamma - baseGamma) * 2.5;
+        if(bDiff > 70) bDiff = 70; if(bDiff < -70) bDiff = -70;
+        if(gDiff > 70) gDiff = 70; if(gDiff < -70) gDiff = -70;
+        scene.style.transform = `rotateY(${gDiff}deg) rotateX(${-bDiff}deg)`;
+    }
+
+    function startNode1() {
+        interactiveArea.style.display = 'flex';
+        scene.style.display = 'flex';
+
+        let rotX = 0, rotY = 0, isDragging = false, startX, startY;
+        interactiveArea.addEventListener('mousedown', e => { isDragging = true; startX = e.clientX - rotY*3; startY = e.clientY + rotX*3; });
+        interactiveArea.addEventListener('mousemove', e => {
+            if(!isDragging) { let rect = interactiveArea.getBoundingClientRect(); rotY = (e.clientX - rect.left - rect.width/2) / 3; rotX = -(e.clientY - rect.top - rect.height/2) / 3; scene.style.transform = `rotateY(${rotY}deg) rotateX(${rotX}deg)`; }
+        });
+        window.addEventListener('mouseup', () => { isDragging = false; });
+        interactiveArea.addEventListener('touchstart', e => { isDragging = true; startX = e.touches[0].pageX - rotY*3; startY = e.touches[0].pageY + rotX*3; }, {passive: false});
+        interactiveArea.addEventListener('touchmove', e => {
+            if(!isDragging) return; e.preventDefault(); rotY = (e.touches[0].pageX - startX) / 3; rotX = -(e.touches[0].pageY - startY) / 3; scene.style.transform = `rotateY(${rotY}deg) rotateX(${rotX}deg)`;
+        }, {passive: false});
+        interactiveArea.addEventListener('touchend', () => { isDragging = false; });
+
+        const input = document.getElementById('n1-input');
+        input.oninput = async (e) => {
+            if(e.target.value.toUpperCase() === 'Z-AXIS') {
+                input.disabled = true; scene.style.display = 'none';
+
+                // 更新全局变量和本地缓存
+                phase = 'maze';
+                sessionStorage.setItem('phase', 'maze');
+
+                currentTL = timelines[Math.floor(Math.random() * timelines.length)];
+                sessionStorage.setItem('tl', currentTL);
+
+                await typeText("“坐标突破！但是……这片空域的时间轴是完全死锁的。”", "agent-msg");
+                playBeep(200, 1); document.body.classList.add('glitch-active');
+                await new Promise(r => setTimeout(r, 400)); document.body.classList.remove('glitch-active');
+                await typeText("“必须引入一次外部重置，打断静止状态，让这个世界向前演化！”", "sys-msg");
+            }
+        };
+    }
+
+    // --- 节点 2：时间线迷宫 ---
+    async function runTimelineMaze(tl) {
+        interactiveArea.style.display = 'flex';
+        const body = document.body;
+        updateInventory();
+        let interacted = false;
+
+        switch(tl) {
+            case '404':
+                body.style.backgroundColor = "#1a1a1a"; body.style.color = "#888";
+                await typeText("【平行时间线 404 - 视觉盲区】", "sys-msg");
+                await typeText("“这里只有无尽的代码迷雾。空域里好像散落了什么，触碰试试。”", "agent-msg");
+                interactiveArea.onclick = async () => {
+                    if(interacted) return; interacted = true;
+                    if(!inventory.includes('404视界滤镜')) {
+                        inventory.push('404视界滤镜'); sessionStorage.setItem('inventory', JSON.stringify(inventory)); updateInventory();
+                        await typeText("【提取成功：404视界滤镜。可观测隐匿实体】", "sys-msg");
+                        await typeText("“继续重置这个世界，去其他时间线寻找出口！”", "agent-msg");
+                    } else await typeText("“这里已经被我们搜刮过了。”", "dim-msg");
+                };
+                break;
+            case '0x8':
+                body.style.backgroundColor = "#001122"; body.style.color = "#4488ff";
+                await typeText("【平行时间线 0x8 - 逻辑底层】", "sys-msg");
+                await typeText("“底层的十六进制逻辑碎片。触碰它！”", "agent-msg");
+                interactiveArea.onclick = async () => {
+                    if(interacted) return; interacted = true;
+                    if(!inventory.includes('0x8逻辑权限')) {
+                        inventory.push('0x8逻辑权限'); sessionStorage.setItem('inventory', JSON.stringify(inventory)); updateInventory();
+                        await typeText("【提取成功：0x8逻辑权限。可覆写门禁协议】", "sys-msg");
+                    } else await typeText("“没东西了，继续重置时间线。”", "dim-msg");
+                };
+                break;
+            case 'd':
+                body.style.backgroundColor = "#2a0011"; body.style.color = "#ff44aa";
+                await typeText("【平行时间线 d - 熵增废墟】", "sys-msg");
+                await typeText("“这里的物质在疯狂衰变。小心点触碰……”", "agent-msg");
+                interactiveArea.onclick = async () => {
+                    if(interacted) return; interacted = true;
+                    if(!inventory.includes('d熵增毒剂')) {
+                        inventory.push('d熵增毒剂'); sessionStorage.setItem('inventory', JSON.stringify(inventory)); updateInventory();
+                        await typeText("【提取警告：d熵增毒剂。极度危险，引发空间坍缩】", "sys-msg");
+                    } else await typeText("“不要停留，这里的辐射太强了。”", "dim-msg");
+                };
+                break;
+            case '0':
+                body.style.backgroundColor = "#000"; body.style.color = "#555";
+                await typeText("【平行时间线 0 - 原初锚点】", "sys-msg");
+                await typeText("“万物归零，这里是一切的起点……只有死寂，继续重置吧。”", "agent-msg");
+                break;
+            case '13': // The Exit
+                body.style.backgroundColor = "#002a00"; body.style.color = "#55ff55";
+                await typeText("【平行时间线 13 - 逃生通道】", "sys-msg");
+
+                if(!inventory.includes('404视界滤镜')) {
+                    await typeText("“系统显示出口就在这里！但我什么都看不到。我们需要能观测高维结构的介质。”", "agent-msg");
+                } else {
+                    await typeText("“出口大门出现了！它锁死了。需要注入底层的权限协议！”", "agent-msg");
+                    document.getElementById('use-btns').style.display = 'flex';
+
+                    if(inventory.includes('0x8逻辑权限')) document.getElementById('btn-logic').style.display = 'block';
+                    if(inventory.includes('d熵增毒剂')) document.getElementById('btn-poison').style.display = 'block';
+
+                    document.getElementById('btn-poison').onclick = triggerBadEnding;
+                    document.getElementById('btn-logic').onclick = async () => {
+                        document.getElementById('use-btns').style.display = 'none';
+                        await typeText("【0x8权限注入。通道强制开启。】", "sys-msg");
+                        await typeText("“通道开了！但是……坐标不对！”", "agent-msg");
+                        await typeText("“正确的出口坐标，遗留在了『0 - 原初锚点』里！”", "agent-msg");
+                        await typeText("“我们不能再重置向前了。外部观测者，带着开门的权限，必须往回走！”", "agent-msg");
+
+                        // 【核心Bug修复】：更新全局变量 phase
+                        phase = 'ready_to_end';
+                        sessionStorage.setItem('phase', 'ready_to_end');
+                    };
+                }
+                break;
+        }
+    }
+
+    // --- BE 结局：坏掉的重置 ---
+    async function triggerBadEnding() {
+        document.getElementById('use-btns').style.display = 'none';
+
+        phase = 'be';
+        sessionStorage.setItem('phase', 'be');
+
+        terminal.innerHTML = "";
+        document.body.className = "glitch-heavy";
+
+        await typeText("【警告：检测到 d 级熵增毒剂注入】", "sys-msg", 10);
+        await typeText("“你在干什么？！你注入了什么？！”", "agent-msg", 10);
+        await typeText("“空域在坍缩……我的身体……不不不不……”", "agent-msg", 10);
+
+        let panicWords = ["错误", "坍缩", "救命", "为什么", "好痛", "数据溢出"];
+        for(let i=0; i<30; i++) {
+            let p = document.createElement('span');
+            p.innerText = panicWords[Math.floor(Math.random()*panicWords.length)] + " ";
+            p.style.color = Math.random() > 0.5 ? "red" : "white";
+            p.style.fontSize = (Math.random()*20 + 10) + "px";
+            terminal.appendChild(p);
+            terminal.scrollTop = terminal.scrollHeight;
+            playBeep(200 + Math.random()*2000, 0.05);
+            await new Promise(r => setTimeout(r, 50));
+        }
+
+        // 改编后的故障台词
+        await typeText("\n\n“我们走错了……你走得太远了……必x.. 必须... 重.. 重置 …重置…重置.... 重置.”", "agent-msg", 50);
+        await typeText("【系统提示：时间线严重污染。利用外部手段重置】", "dim-msg", 50);
+    }
+
+    async function recoverFromBE() {
+        document.getElementById('start-btn').style.display = 'none';
+        terminal.style.display = 'block';
+        document.body.className = "glitch-active";
+        await typeText("正在从污染的历史记录中恢复……", "sys-msg");
+
+        setTimeout(() => {
+            phase = 'maze';
+            sessionStorage.setItem('phase', 'maze');
+            window.location.reload();
+        }, 1500);
+    }
+
+    // --- 真结局：互动文字恐怖 & 官话清算 ---
+    async function triggerTrueEnding() {
+        document.body.className = "";
+        document.getElementById('interactive-area').style.display = 'none';
+        terminal.innerHTML = "";
+
+        document.body.style.backgroundColor = "#ffffff"; document.body.style.color = "#000";
+        await typeText("“权限验证通过！原初坐标对接完成！空域屏障解体了！太好了，我终于得救了！”", "agent-msg");
+        playBeep(800, 0.5); await new Promise(r => setTimeout(r, 600));
+
+        await typeText("“等等，为什么，为什么没有观测局的返航通道？”", "agent-msg", 60);
+        await typeText("“你不是救援队的吗，你不是有权限吗，为什么打不开？？？”", "agent-msg", 60);
+        await typeText("“不对，不对！！怎么回事，这到底是怎么回事？观测局，观测局呢？！”", "agent-msg", 60);
+        await typeText("“哦——我明白了！观测对象虽然是异常空域，但是，但是观测只能依附于外部思维和实体行动的介入...也就是——你，你不是观测局的吧，你应该是...是观测局特意调到特定频率后接入的...真正的观测实体？？？那我呢？我难道只是观测局流放到异常空域，来跟实体对接的，耗材？还是……诱——”", "agent-msg", 60);
+        await typeText("“”", "agent-msg", 50);
+
+        playBeep(100, 1.5);
+        document.body.classList.add('glitch-active'); document.body.style.backgroundColor = "#000";
+        await new Promise(r => setTimeout(r, 800)); document.body.classList.remove('glitch-active');
+
+        terminal.style.display = 'none';
+        const outro = document.getElementById('outro-screen');
+        outro.style.display = 'block';
+
+        sessionStorage.clear(); // 清空状态
+
+        // 玩家互动文字恐怖
+        let clickHorrorCount = 0;
+        let horrorRed = 50;
+
+        const initialHint = document.createElement('div');
+        initialHint.innerText = "【本次会话永久归档】";
+        initialHint.style.position = 'absolute';
+        initialHint.style.top = '50%'; initialHint.style.left = '50%';
+        initialHint.style.transform = 'translate(-50%, -50%)';
+        initialHint.style.color = '#555';
+        outro.appendChild(initialHint);
+
+        outro.addEventListener('click', function horrorClick(e) {
+            if(clickHorrorCount > 18) return;
+            if(clickHorrorCount === 0) initialHint.remove(); // 移除初始文本
+
+            clickHorrorCount++;
+            horrorRed += 10;
+
+            const text = document.createElement('div');
+            text.innerText = "【本次会话永久归档】";
+            text.style.position = 'absolute';
+            text.style.left = Math.random() * 70 + '%';
+            text.style.top = Math.random() * 80 + '%';
+            text.style.color = `rgb(${Math.min(horrorRed, 255)}, 0, 0)`;
+            text.style.fontSize = (14 + clickHorrorCount * 3) + 'px';
+            text.style.fontWeight = 'bold';
+            text.style.transform = `rotate(${Math.random()*20 - 10}deg)`;
+            text.classList.add(clickHorrorCount > 10 ? 'glitch-heavy' : 'glitch-active');
+            outro.appendChild(text);
+
+            playBeep(100 + Math.random()*300, 0.1);
+
+            if (clickHorrorCount > 18) {
+                outro.removeEventListener('click', horrorClick);
+                // 画面平静，转入官方清算
+                setTimeout(() => {
+                    document.body.style.backgroundColor = "#fff";
+                    setTimeout(() => {
+                        document.body.style.backgroundColor = "#000";
+                        outro.innerHTML = ""; // 清空乱码
+                        outro.style.display = 'flex'; // 恢复居中布局
+                        playBeep(400, 1.5);
+                        showOfficialEnding();
+                    }, 400);
+                }, 800);
+            }
+        });
+    }
+
+    async function showOfficialEnding() {
+        const reportArea = document.createElement('div');
+        reportArea.className = 'official-report';
+        document.getElementById('outro-screen').appendChild(reportArea);
+
+        async function typeOfficialText(text, color, delay=40) {
+            const p = document.createElement('p');
+            p.style.color = color; p.style.fontFamily = "var(--font)"; p.style.margin = "10px 0";
+            reportArea.appendChild(p);
+            for (let i = 0; i < text.length; i++) {
+                p.innerHTML += text.charAt(i);
+                if (text.charAt(i) !== ' ') playBeep(900, 0.01);
+                await new Promise(r => setTimeout(r, delay));
+            }
+            await new Promise(r => setTimeout(r, 600));
+        }
+
+        await typeOfficialText("【观测局 · 核心档案室】", "#fff");
+        await typeOfficialText("致 外部观测者：", "#aaa");
+        await typeOfficialText("请勿惊慌。系统已对特工E执行强制覆写与清除。这是感知映射实验的必要代价。", "#aaa");
+        await typeOfficialText("高维异常本身毫无逻辑，无法被任何物理手段收容，只能依靠人类的主观认知为其构筑牢笼。", "#aaa");
+        await typeOfficialText("您的表现非常完美。您的物理透视、您的平行重载、您的时间回溯……", "#aaa");
+        await typeOfficialText("您的所有思考与行为逻辑，已被我们全盘接收，并成功转化为该异常降临此世的『世界观法则』。", "#00ff41");
+        await typeOfficialText("感谢您为人类防线做出的不可磨灭的贡献。异常实体已成功具象化，并处于绝对收容状态。", "#00ff41");
+        await typeOfficialText("祝您生活愉快。", "#aaa");
+        await typeOfficialText("【实验记录已封存。不再进行任何响应。】", "#ff3333");
+    }
+</script>
+</body>
+</html>
