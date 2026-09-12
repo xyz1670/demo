@@ -165,23 +165,20 @@
         } else if (phase === 'maze') {
             document.getElementById('start-btn').style.display = 'none';
             terminal.style.display = 'block';
-            injectHistoryTrap(); // 迷宫阶段强制注入防退历史
+            injectHistoryTrap();
             runTimelineMaze(currentTL);
         } else if (phase === 'be') {
-            // BE阶段如果刷新（重置），直接恢复
             recoverFromBE();
         } else if (phase === 'ready_to_end') {
-            // 如果在这阶段刷新了，直接给真结局
             triggerTrueEnding();
         }
     };
 
-    // 强力历史记录注入，防止部分浏览器侧滑直接关闭页面
     function injectHistoryTrap() {
         if(window.location.hash !== "#play") {
-            window.location.hash = "play"; // 创造物理锚点
+            window.location.hash = "play";
         }
-        for(let i=0; i<10; i++) history.pushState({ trap: i }, "");
+        for(let i=0; i<10; i++) history.pushState({ trap: i }, "", window.location.href);
     }
 
     function initGame() {
@@ -201,11 +198,9 @@
 
     // 监听返回键 / 侧滑手势
     window.onpopstate = async (event) => {
-        history.pushState({ trap: 99 }, ""); // 继续困住玩家，防止退回桌面
+        history.pushState({ trap: 99 }, "", window.location.href);
 
-        // 【关键修复点】：这里要直接判断当前内存里的 phase 变量，不能被写死！
         if (phase === 'be') {
-            // 正常是通过刷新来重置，但如果玩家按了返回，也算一种“往回走”的重置
             recoverFromBE();
         } else if (phase === 'ready_to_end') {
             triggerTrueEnding();
@@ -258,10 +253,8 @@
             if(e.target.value.toUpperCase() === 'Z-AXIS') {
                 input.disabled = true; scene.style.display = 'none';
 
-                // 更新全局变量和本地缓存
                 phase = 'maze';
                 sessionStorage.setItem('phase', 'maze');
-
                 currentTL = timelines[Math.floor(Math.random() * timelines.length)];
                 sessionStorage.setItem('tl', currentTL);
 
@@ -344,7 +337,6 @@
                         await typeText("“正确的出口坐标，遗留在了『0 - 原初锚点』里！”", "agent-msg");
                         await typeText("“我们不能再重置向前了。外部观测者，带着开门的权限，必须往回走！”", "agent-msg");
 
-                        // 【核心Bug修复】：更新全局变量 phase
                         phase = 'ready_to_end';
                         sessionStorage.setItem('phase', 'ready_to_end');
                     };
@@ -379,7 +371,6 @@
             await new Promise(r => setTimeout(r, 50));
         }
 
-        // 改编后的故障台词
         await typeText("\n\n“我们走错了……你走得太远了……必x.. 必须... 重.. 重置 …重置…重置.... 重置.”", "agent-msg", 50);
         await typeText("【系统提示：时间线严重污染。利用外部手段重置】", "dim-msg", 50);
     }
@@ -397,22 +388,104 @@
         }, 1500);
     }
 
-    // --- 真结局：互动文字恐怖 & 官话清算 ---
+    // --- 真结局：极度文字恐怖演出与官话清算 ---
     async function triggerTrueEnding() {
         document.body.className = "";
         document.getElementById('interactive-area').style.display = 'none';
         terminal.innerHTML = "";
 
-        document.body.style.backgroundColor = "#ffffff"; document.body.style.color = "#000";
+        document.body.style.backgroundColor = "#ffffff";
+        playBeep(800, 0.5);
+        await new Promise(r => setTimeout(r, 150));
+        document.body.style.backgroundColor = "#111111";
+
         await typeText("“权限验证通过！原初坐标对接完成！空域屏障解体了！太好了，我终于得救了！”", "agent-msg");
-        playBeep(800, 0.5); await new Promise(r => setTimeout(r, 600));
+        await new Promise(r => setTimeout(r, 600));
 
-        await typeText("“等等，为什么，为什么没有观测局的返航通道？”", "agent-msg", 60);
-        await typeText("“你不是救援队的吗，你不是有权限吗，为什么打不开？？？”", "agent-msg", 60);
-        await typeText("“不对，不对！！怎么回事，这到底是怎么回事？观测局，观测局呢？！”", "agent-msg", 60);
-        await typeText("“哦——我明白了！观测对象虽然是异常空域，但是，但是观测只能依附于外部思维和实体行动的介入...也就是——你，你不是观测局的吧，你应该是...是观测局特意调到特定频率后接入的...真正的观测实体？？？那我呢？我难道只是观测局流放到异常空域，来跟实体对接的，耗材？还是……诱——”", "agent-msg", 60);
-        await typeText("“”", "agent-msg", 50);
+        // 专门为最后四句台词定制的“崩坏打字机”函数
+        async function typeBreakdownLines(lines) {
+            let totalChars = lines.join("").length;
+            let charCount = 0;
 
+            for(let l = 0; l < lines.length; l++) {
+                const p = document.createElement('p');
+                p.className = 'agent-msg';
+                terminal.appendChild(p);
+                let text = lines[l];
+
+                for (let i = 0; i < text.length; i++) {
+                    let char = text.charAt(i);
+                    charCount++;
+                    let progress = charCount / totalChars; // 计算整体崩溃进度 0.0 ~ 1.0
+
+                    let span = document.createElement('span');
+                    span.innerText = char;
+
+                    // 根据进度定义压力等级
+                    let stressLevel = 0;
+                    if (progress > 0.25) stressLevel = 1; // 疑惑
+                    if (progress > 0.45) stressLevel = 2; // 惊恐颤抖
+                    if (progress > 0.75) stressLevel = 3; // 崩溃变大变红
+                    if (progress > 0.90) stressLevel = 4; // 极度停滞、深红乱跳
+
+                    let delay = 50;
+                    let pitch = 800;
+
+                    // 动态应用 CSS 与 打字延迟
+                    if (stressLevel === 1) {
+                        delay = 70 + Math.random() * 40;
+                        if (Math.random() > 0.8) { span.classList.add('glitch-active'); span.style.color = "#ffaaaa"; }
+                    } else if (stressLevel === 2) {
+                        delay = 100 + Math.random() * 80;
+                        pitch = 600;
+                        if (Math.random() > 0.5) span.classList.add('glitch-active');
+                        span.style.fontSize = (14 + Math.random() * 4) + 'px';
+                        if (Math.random() > 0.7) span.style.color = "#ff5555";
+                    } else if (stressLevel === 3) {
+                        delay = 150 + Math.random() * 150;
+                        pitch = 400;
+                        if (Math.random() > 0.3) span.classList.add('glitch-heavy');
+                        span.style.fontSize = (16 + Math.random() * 8) + 'px';
+                        span.style.color = Math.random() > 0.4 ? "#ff2222" : "#fff";
+                        span.style.display = "inline-block";
+                        span.style.transform = `translate(${Math.random()*2-1}px, ${Math.random()*2-1}px) rotate(${Math.random()*6 - 3}deg)`;
+                    } else if (stressLevel === 4) {
+                        delay = 300 + Math.random() * 400; // 停滞的时间极度拉长
+                        pitch = 200;
+                        span.classList.add('glitch-heavy');
+                        span.style.fontSize = (20 + Math.random() * 14) + 'px';
+                        span.style.color = "#ff0000";
+                        span.style.display = "inline-block";
+                        span.style.transform = `translate(${Math.random()*4-2}px, ${Math.random()*4-2}px) rotate(${Math.random()*16 - 8}deg)`;
+                    }
+
+                    p.appendChild(span);
+
+                    // 标点符号不发声
+                    if (char !== ' ' && char !== '。' && char !== '？' && char !== '！' && char !== '，' && char !== '…' && char !== '—') {
+                        playBeep(pitch + Math.random()*100, 0.02 + stressLevel * 0.015);
+                    }
+                    terminal.scrollTop = terminal.scrollHeight;
+
+                    // 遇到标点符号时，随着崩溃等级拉长停顿时间，营造窒息感
+                    if (['！', '？', '，', '。', '、', '…', '—'].includes(char)) {
+                        delay += 200 + stressLevel * 300;
+                    }
+                    await new Promise(r => setTimeout(r, delay));
+                }
+                await new Promise(r => setTimeout(r, 600));
+            }
+        }
+
+        // 调用专属打字机，执行文本恐怖演化
+        await typeBreakdownLines([
+            "“等等，为什么，为什么没有观测局的返航通道？”",
+            "“你不是救援队的吗，你不是有权限吗，为什么打不开？？？”",
+            "“不对，不对！！怎么回事，这到底是怎么回事？观测局，观测局呢？！”",
+            "“哦——我明白了！观测对象虽然是异常空域，但是，但是观测只能依附于外部思维和实体行动的介入...也就是——你，你不是观测局的吧，你应该是...是观测局特意调到特定频率后接入的...真正的观测实体？？？那我呢？我难道只是观测局流放到异常空域，来跟实体对接的，耗材？还是……诱——”"
+        ]);
+
+        // 特工话音未落，瞬间抹杀
         playBeep(100, 1.5);
         document.body.classList.add('glitch-active'); document.body.style.backgroundColor = "#000";
         await new Promise(r => setTimeout(r, 800)); document.body.classList.remove('glitch-active');
@@ -421,9 +494,8 @@
         const outro = document.getElementById('outro-screen');
         outro.style.display = 'block';
 
-        sessionStorage.clear(); // 清空状态
+        sessionStorage.clear();
 
-        // 玩家互动文字恐怖
         let clickHorrorCount = 0;
         let horrorRed = 50;
 
@@ -437,7 +509,7 @@
 
         outro.addEventListener('click', function horrorClick(e) {
             if(clickHorrorCount > 18) return;
-            if(clickHorrorCount === 0) initialHint.remove(); // 移除初始文本
+            if(clickHorrorCount === 0) initialHint.remove();
 
             clickHorrorCount++;
             horrorRed += 10;
@@ -458,13 +530,12 @@
 
             if (clickHorrorCount > 18) {
                 outro.removeEventListener('click', horrorClick);
-                // 画面平静，转入官方清算
                 setTimeout(() => {
                     document.body.style.backgroundColor = "#fff";
                     setTimeout(() => {
                         document.body.style.backgroundColor = "#000";
-                        outro.innerHTML = ""; // 清空乱码
-                        outro.style.display = 'flex'; // 恢复居中布局
+                        outro.innerHTML = "";
+                        outro.style.display = 'flex';
                         playBeep(400, 1.5);
                         showOfficialEnding();
                     }, 400);
