@@ -13,7 +13,6 @@
             background-image: linear-gradient(rgba(0, 255, 0, 0.02) 1px, transparent 1px);
             background-size: 100% 3px; transition: background-color 0.5s ease; user-select: none;
         }
-
         #terminal {
             width: 100%; max-width: 600px; height: 35vh; overflow-y: auto; margin-bottom: 20px;
             line-height: 1.6; font-size: 14px; text-shadow: 0 0 5px rgba(0, 255, 65, 0.4); pointer-events: none;
@@ -28,7 +27,6 @@
             position: relative; display: none; justify-content: center; align-items: center;
             background: rgba(0, 255, 65, 0.02); overflow: hidden; perspective: 800px; cursor: pointer;
         }
-
         /* Node 1: 3D 镂空球体 */
         #scene-3d {
             width: 100%; height: 100%; position: relative; transform-style: preserve-3d; 
@@ -46,7 +44,6 @@
         .ring:nth-child(2) { transform: rotateY(60deg); border-color: #0a0a0a; }
         .ring:nth-child(3) { transform: rotateY(120deg); }
         .ring:nth-child(4) { transform: rotateX(90deg); border-color: #151515; }
-
         #hidden-password {
             position: absolute; font-size: 38px; font-weight: bold; color: var(--text-main);
             letter-spacing: 5px; transform: translateZ(-20px); text-shadow: 0 0 15px var(--text-main); pointer-events: none;
@@ -56,12 +53,10 @@
             background: rgba(0,0,0,0.8); border: 1px solid var(--text-main); color: var(--text-main);
             text-align: center; padding: 10px; font-family: var(--font); outline: none; z-index: 20; width: 150px;
         }
-
         #inventory {
             position: absolute; top: 10px; left: 10px; display: none;
             font-size: 12px; color: #aaa; z-index: 30; pointer-events: none;
         }
-
         /* 结局 & BE 屏 */
         #outro-screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000;
@@ -75,7 +70,6 @@
         .btn-group { position: absolute; bottom: 30px; display: flex; gap: 10px; z-index: 50; display: none; }
         .action-btn { background: #000; border: 1px solid var(--text-main); color: var(--text-main); padding: 10px; font-family: var(--font); cursor: pointer; }
         .action-btn.danger { border-color: var(--text-sys); color: var(--text-sys); }
-
         .glitch-active { animation: glitch 0.1s infinite; }
         .glitch-heavy { animation: glitchHeavy 0.05s infinite; color: var(--text-sys) !important;}
         @keyframes glitch { 0% { transform: translate(0); } 25% { transform: translate(-2px, 2px); } 75% { transform: translate(2px, -2px); } 100% { transform: translate(0); } }
@@ -88,7 +82,6 @@
     </style>
 </head>
 <body>
-
     <button id="start-btn">[ 接入频段 & 初始化观测协议 ]</button>
     <div id="terminal" style="display:none;"></div>
     
@@ -111,7 +104,6 @@
     </div>
     
     <div id="outro-screen"></div>
-
 <script>
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     function playBeep(freq = 600, duration = 0.05) {
@@ -122,23 +114,25 @@
         osc.start(); gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + duration);
         setTimeout(() => osc.stop(), duration * 1000);
     }
-
     document.body.addEventListener('click', () => { if(audioCtx.state==='suspended') audioCtx.resume(); }, {once: true});
-
     const terminal = document.getElementById('terminal');
     const interactiveArea = document.getElementById('interactive-area');
     
+    // 【排他锁】：防止回退和刷新同时发生导致的文字重叠
+    let typingVersion = 0;
     async function typeText(text, className = "", speed = 40) {
+        let currentVersion = typingVersion;
         const p = document.createElement('p'); p.className = className; terminal.appendChild(p);
         for (let i = 0; i < text.length; i++) {
+            if (currentVersion !== typingVersion) return; // 强制打断正在打印的文本
             p.innerHTML += text.charAt(i);
             if (text.charAt(i) !== ' ' && text.charAt(i) !== '。') playBeep(800 + Math.random()*100, 0.02);
             terminal.scrollTop = terminal.scrollHeight;
             await new Promise(r => setTimeout(r, speed));
         }
+        if (currentVersion !== typingVersion) return;
         await new Promise(r => setTimeout(r, 200));
     }
-
     // ==========================================
     // 状态管理与防闪退超级历史锚点
     // ==========================================
@@ -146,19 +140,18 @@
     let inventory = JSON.parse(sessionStorage.getItem('inventory') || '[]');
     const timelines = ['0', 'd', '13', '0x8', '404'];
     let currentTL = sessionStorage.getItem('tl') || null;
-
     let navType = performance.getEntriesByType("navigation")[0]?.type;
-
     if (phase === 'maze' && navType === 'reload') {
         currentTL = timelines[Math.floor(Math.random() * timelines.length)];
         sessionStorage.setItem('tl', currentTL);
     }
-
     function updateInventory() {
         document.getElementById('inventory').style.display = 'block';
         document.getElementById('inv-list').innerText = inventory.length ? inventory.join('\n') : '无';
     }
-
+    // 防抖锁，拦截页面加载瞬间浏览器自动触发的虚假回退事件
+    let popstateReady = false;
+    setTimeout(() => { popstateReady = true; }, 200);
     window.onload = () => {
         if (phase === 'start') {
             document.getElementById('start-btn').onclick = initGame;
@@ -170,21 +163,31 @@
         } else if (phase === 'be') {
             recoverFromBE();
         } else if (phase === 'ready_to_end') {
-            // 【核心修复】：玩家不听话强行刷新，不会闪退崩溃，而是会收到警告！
+            // 无论在这里刷新多少次，永远只能锁死在这个界面，主线绝不推进！
             document.getElementById('start-btn').style.display = 'none';
             terminal.style.display = 'block';
             injectHistoryTrap(); 
             wrongWayReload();
+        } else if (phase === 'ending') {
+            sessionStorage.clear();
+            window.location.reload();
         }
     };
-
     function injectHistoryTrap() {
-        if(window.location.hash !== "#play") {
-            window.location.hash = "play"; 
+        let ts = new Date().getTime();
+        if(window.location.hash.indexOf("play") === -1) {
+            window.location.hash = "play_" + ts; 
         }
-        for(let i=0; i<10; i++) history.pushState({ trap: i }, "", window.location.href);
+        for(let i=0; i<6; i++) {
+            history.pushState({ trap: i }, "", "#lock_" + ts + "_" + i);
+        }
     }
-
+    document.addEventListener('touchstart', () => {
+        if(!window.touchTrapped) {
+            window.touchTrapped = true;
+            history.pushState({ trap: 'touch' }, "", "#lock_touch_" + new Date().getTime());
+        }
+    }, { passive: true });
     function initGame() {
         audioCtx.resume();
         injectHistoryTrap(); 
@@ -199,31 +202,55 @@
         terminal.style.display = 'block';
         startGame();
     }
-
     // 监听返回键 / 侧滑手势
     window.onpopstate = async (event) => {
-        history.pushState({ trap: 99 }, "", window.location.href); 
+        if (!popstateReady) return; // 拦截加载时瞬间的误触
+        history.pushState({ trap: 99 }, "", "#lock_pop_" + new Date().getTime()); 
         
         if (phase === 'be') {
-            recoverFromBE();
+            if (!window.isRecovering) {
+                window.isRecovering = true;
+                recoverFromBE();
+            }
         } else if (phase === 'ready_to_end') {
-            triggerTrueEnding();
+            // 只有主动后退才能正常进入剧情！
+            if (!window.isEnding) {
+                window.isEnding = true;
+                typingVersion++;
+                triggerTrueEnding();
+            }
         } else if (phase === 'maze') {
-            await typeText("“不能乱走！时间线的潮汐会把我们撕碎。继续寻找出路！”", "dim-msg");
+            if (!window.isMazeWarning) {
+                window.isMazeWarning = true;
+                typingVersion++; // 强制打断迷宫里的其他提示文本，防止重叠
+                let myVersion = typingVersion;
+                await typeText("“不能乱走！时间线的潮汐会把我们撕碎。继续寻找出路！”", "dim-msg");
+                setTimeout(() => { window.isMazeWarning = false; }, 2000);
+            }
         }
     };
-
-    // --- 在通往结局前刷新的惩罚 ---
+    // --- 在通往结局前刷新的绝对锁死界面 ---
     async function wrongWayReload() {
+        typingVersion++; // 强制打断之前一切输入
+        let myVersion = typingVersion; // 获取当前进程的锁版本
+        terminal.innerHTML = ""; // 清空面板
+        
+        // 如果已经触发回退操作，直接终止，不再执行任何渲染
+        if(window.isEnding) return;
+
         document.body.classList.add('glitch-active'); 
         await new Promise(r => setTimeout(r, 400)); 
+        // 在延时期间如果玩家已经执行回退，立刻中止
+        if (myVersion !== typingVersion || window.isEnding) return;
         document.body.classList.remove('glitch-active');
         
+        if (myVersion !== typingVersion || window.isEnding) return;
         await typeText("【系统警告：正向演化已锁死】", "sys-msg");
+        if (myVersion !== typingVersion || window.isEnding) return;
         await typeText("“你在干什么？！为什么还要重置？！”", "agent-msg");
+        if (myVersion !== typingVersion || window.isEnding) return;
         await typeText("“通道的入口在刚才的过去！不能再重置了，带着权限，赶紧【往回走】！”", "agent-msg");
     }
-
     async function startGame() {
         await typeText("【警告：隔离域遭到外部信号穿透】", "sys-msg");
         await typeText("“观测局的救援小队？！太好了！我是外勤特工E！”", "agent-msg");
@@ -233,7 +260,6 @@
         await typeText("“我需要你们救援队启用高权限维度，绕过它！透过缝隙寻找底层坐标！”", "agent-msg");
         startNode1();
     }
-
     // --- 节点 1：3D 镂空球体 & 陀螺仪 ---
     const scene = document.getElementById('scene-3d');
     let baseBeta = null, baseGamma = null;
@@ -246,7 +272,6 @@
         if(gDiff > 70) gDiff = 70; if(gDiff < -70) gDiff = -70;
         scene.style.transform = `rotateY(${gDiff}deg) rotateX(${-bDiff}deg)`;
     }
-
     function startNode1() {
         interactiveArea.style.display = 'flex';
         scene.style.display = 'flex';
@@ -262,7 +287,6 @@
             if(!isDragging) return; e.preventDefault(); rotY = (e.touches[0].pageX - startX) / 3; rotX = -(e.touches[0].pageY - startY) / 3; scene.style.transform = `rotateY(${rotY}deg) rotateX(${rotX}deg)`;
         }, {passive: false});
         interactiveArea.addEventListener('touchend', () => { isDragging = false; });
-
         const input = document.getElementById('n1-input');
         input.oninput = async (e) => {
             if(e.target.value.toUpperCase() === 'Z-AXIS') {
@@ -280,14 +304,12 @@
             }
         };
     }
-
     // --- 节点 2：时间线迷宫 ---
     async function runTimelineMaze(tl) {
         interactiveArea.style.display = 'flex';
         const body = document.body;
         updateInventory();
         let interacted = false;
-
         switch(tl) {
             case '404':
                 body.style.backgroundColor = "#1a1a1a"; body.style.color = "#888";
@@ -348,26 +370,32 @@
                     document.getElementById('btn-logic').onclick = async () => {
                         document.getElementById('use-btns').style.display = 'none';
                         
-                        // 【核心BUG彻底修复】：瞬间写入状态，防止玩家读得太快提前按侧滑返回！
+                        typingVersion++;
+                        let myVersion = typingVersion;
+                        
                         phase = 'ready_to_end';
                         sessionStorage.setItem('phase', 'ready_to_end');
                         
+                        if (myVersion !== typingVersion) return;
                         await typeText("【0x8权限注入。通道强制开启。】", "sys-msg");
+                        if (myVersion !== typingVersion) return;
                         await typeText("“通道开了！但是……坐标不对！”", "agent-msg");
+                        if (myVersion !== typingVersion) return;
                         await typeText("“正确的出口坐标，遗留在了『0 - 原初锚点』里！”", "agent-msg");
+                        if (myVersion !== typingVersion) return;
                         await typeText("“我们不能再重置向前了。外部观测者，带着开门的权限，必须往回走！”", "agent-msg");
                     };
                 }
                 break;
         }
     }
-
     // --- BE 结局：坏掉的重置 ---
     async function triggerBadEnding() {
         document.getElementById('use-btns').style.display = 'none';
         
         phase = 'be';
         sessionStorage.setItem('phase', 'be');
+        typingVersion++;
         
         terminal.innerHTML = "";
         document.body.className = "glitch-heavy";
@@ -391,7 +419,6 @@
         await typeText("\n\n“我们走错了……你走得太远了……必x.. 必须... 重.. 重置 …重置…重置.... 重置.”", "agent-msg", 50);
         await typeText("【系统提示：时间线严重污染。利用外部手段重置】", "dim-msg", 50);
     }
-
     async function recoverFromBE() {
         document.getElementById('start-btn').style.display = 'none';
         terminal.style.display = 'block';
@@ -404,9 +431,11 @@
             window.location.reload(); 
         }, 1500);
     }
-
     // --- 真结局：极度文字恐怖演出与官话清算 ---
     async function triggerTrueEnding() {
+        typingVersion++; // 强制打断任何还在执行的警告提示
+        phase = 'ending'; 
+        sessionStorage.setItem('phase', 'ending');
         document.body.className = "";
         document.getElementById('interactive-area').style.display = 'none';
         terminal.innerHTML = "";
@@ -416,6 +445,8 @@
         await new Promise(r => setTimeout(r, 150));
         document.body.style.backgroundColor = "#111111"; 
         
+        let myVersion = typingVersion;
+        if (myVersion !== typingVersion) return;
         await typeText("“权限验证通过！原初坐标对接完成！空域屏障解体了！太好了，我终于得救了！”", "agent-msg");
         await new Promise(r => setTimeout(r, 600));
         
@@ -423,30 +454,25 @@
         async function typeBreakdownLines(lines) {
             let totalChars = lines.join("").length;
             let charCount = 0;
-
+            let currentVersion = typingVersion;
             for(let l = 0; l < lines.length; l++) {
                 const p = document.createElement('p');
                 p.className = 'agent-msg';
                 terminal.appendChild(p);
                 let text = lines[l];
-
                 for (let i = 0; i < text.length; i++) {
-                    let char = text.charAt(i);
+                    if (currentVersion !== typingVersion) return; 
                     charCount++;
                     let progress = charCount / totalChars; 
-
                     let span = document.createElement('span');
-                    span.innerText = char;
-
+                    span.innerText = text.charAt(i);
                     let stressLevel = 0;
-                    if (progress > 0.25) stressLevel = 1; // 疑惑
-                    if (progress > 0.45) stressLevel = 2; // 惊恐颤抖
-                    if (progress > 0.75) stressLevel = 3; // 崩溃变大变红
-                    if (progress > 0.90) stressLevel = 4; // 极度停滞、深红乱跳
-
+                    if (progress > 0.25) stressLevel = 1; 
+                    if (progress > 0.45) stressLevel = 2; 
+                    if (progress > 0.75) stressLevel = 3; 
+                    if (progress > 0.90) stressLevel = 4; 
                     let delay = 50;
                     let pitch = 800;
-
                     if (stressLevel === 1) {
                         delay = 70 + Math.random() * 40;
                         if (Math.random() > 0.8) { span.classList.add('glitch-active'); span.style.color = "#ffaaaa"; }
@@ -465,7 +491,7 @@
                         span.style.display = "inline-block";
                         span.style.transform = `translate(${Math.random()*2-1}px, ${Math.random()*2-1}px) rotate(${Math.random()*6 - 3}deg)`;
                     } else if (stressLevel === 4) {
-                        delay = 300 + Math.random() * 400; // 停滞的时间极度拉长
+                        delay = 300 + Math.random() * 400; 
                         pitch = 200;
                         span.classList.add('glitch-heavy');
                         span.style.fontSize = (20 + Math.random() * 14) + 'px';
@@ -473,15 +499,12 @@
                         span.style.display = "inline-block";
                         span.style.transform = `translate(${Math.random()*4-2}px, ${Math.random()*4-2}px) rotate(${Math.random()*16 - 8}deg)`;
                     }
-
                     p.appendChild(span);
-
-                    if (char !== ' ' && char !== '。' && char !== '？' && char !== '！' && char !== '，' && char !== '…' && char !== '—') {
+                    if (text.charAt(i) !== ' ' && !['。','？','！','，','…','—'].includes(text.charAt(i))) {
                         playBeep(pitch + Math.random()*100, 0.02 + stressLevel * 0.015);
                     }
                     terminal.scrollTop = terminal.scrollHeight;
-
-                    if (['！', '？', '，', '。', '、', '…', '—'].includes(char)) {
+                    if (['！', '？', '，', '。', '、', '…', '—'].includes(text.charAt(i))) {
                         delay += 200 + stressLevel * 300;
                     }
                     await new Promise(r => setTimeout(r, delay));
@@ -489,15 +512,13 @@
                 await new Promise(r => setTimeout(r, 600)); 
             }
         }
-
-        // 调用专属打字机，执行文本恐怖演化
+        if (myVersion !== typingVersion) return;
         await typeBreakdownLines([
             "“等等，为什么，为什么没有观测局的返航通道？”",
             "“你不是救援队的吗，你不是有权限吗，为什么打不开？？？”",
             "“不对，不对！！怎么回事，这到底是怎么回事？观测局，观测局呢？！”",
             "“哦——我明白了！观测对象虽然是异常空域，但是，但是观测只能依附于外部思维和实体行动的介入...也就是——你，你不是观测局的吧，你应该是...是观测局特意调到特定频率后接入的...真正的观测实体？？？那我呢？我难道只是观测局流放到异常空域，来跟实体对接的，耗材？还是……诱——"
         ]);
-
         playBeep(100, 1.5);
         document.body.classList.add('glitch-active'); document.body.style.backgroundColor = "#000";
         await new Promise(r => setTimeout(r, 800)); document.body.classList.remove('glitch-active');
@@ -507,7 +528,6 @@
         outro.style.display = 'block';
         
         sessionStorage.clear(); 
-
         let clickHorrorCount = 0;
         let horrorRed = 50;
         
@@ -518,11 +538,9 @@
         initialHint.style.transform = 'translate(-50%, -50%)';
         initialHint.style.color = '#555';
         outro.appendChild(initialHint);
-
         outro.addEventListener('click', function horrorClick(e) {
             if(clickHorrorCount > 18) return; 
             if(clickHorrorCount === 0) initialHint.remove(); 
-
             clickHorrorCount++;
             horrorRed += 10;
             
@@ -555,12 +573,10 @@
             }
         });
     }
-
     async function showOfficialEnding() {
         const reportArea = document.createElement('div');
         reportArea.className = 'official-report';
         document.getElementById('outro-screen').appendChild(reportArea);
-
         async function typeOfficialText(text, color, delay=40) {
             const p = document.createElement('p'); 
             p.style.color = color; p.style.fontFamily = "var(--font)"; p.style.margin = "10px 0";
@@ -572,7 +588,6 @@
             }
             await new Promise(r => setTimeout(r, 600));
         }
-
         await typeOfficialText("【观测局 · 核心档案室】", "#fff");
         await typeOfficialText("致 外部观测者：", "#aaa");
         await typeOfficialText("请勿惊慌。系统已对特工E执行强制覆写与清除。这是感知映射实验的必要代价。", "#aaa");
