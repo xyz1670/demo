@@ -170,7 +170,11 @@
         } else if (phase === 'be') {
             recoverFromBE();
         } else if (phase === 'ready_to_end') {
-            triggerTrueEnding();
+            // 【核心修复】：玩家不听话强行刷新，不会闪退崩溃，而是会收到警告！
+            document.getElementById('start-btn').style.display = 'none';
+            terminal.style.display = 'block';
+            injectHistoryTrap();
+            wrongWayReload();
         }
     };
 
@@ -208,6 +212,17 @@
             await typeText("“不能乱走！时间线的潮汐会把我们撕碎。继续寻找出路！”", "dim-msg");
         }
     };
+
+    // --- 在通往结局前刷新的惩罚 ---
+    async function wrongWayReload() {
+        document.body.classList.add('glitch-active');
+        await new Promise(r => setTimeout(r, 400));
+        document.body.classList.remove('glitch-active');
+
+        await typeText("【系统警告：正向演化已锁死】", "sys-msg");
+        await typeText("“你在干什么？！为什么还要重置？！”", "agent-msg");
+        await typeText("“通道的入口在刚才的过去！不能再重置了，带着权限，赶紧【往回走】！”", "agent-msg");
+    }
 
     async function startGame() {
         await typeText("【警告：隔离域遭到外部信号穿透】", "sys-msg");
@@ -332,13 +347,15 @@
                     document.getElementById('btn-poison').onclick = triggerBadEnding;
                     document.getElementById('btn-logic').onclick = async () => {
                         document.getElementById('use-btns').style.display = 'none';
+
+                        // 【核心BUG彻底修复】：瞬间写入状态，防止玩家读得太快提前按侧滑返回！
+                        phase = 'ready_to_end';
+                        sessionStorage.setItem('phase', 'ready_to_end');
+
                         await typeText("【0x8权限注入。通道强制开启。】", "sys-msg");
                         await typeText("“通道开了！但是……坐标不对！”", "agent-msg");
                         await typeText("“正确的出口坐标，遗留在了『0 - 原初锚点』里！”", "agent-msg");
                         await typeText("“我们不能再重置向前了。外部观测者，带着开门的权限，必须往回走！”", "agent-msg");
-
-                        phase = 'ready_to_end';
-                        sessionStorage.setItem('phase', 'ready_to_end');
                     };
                 }
                 break;
@@ -416,12 +433,11 @@
                 for (let i = 0; i < text.length; i++) {
                     let char = text.charAt(i);
                     charCount++;
-                    let progress = charCount / totalChars; // 计算整体崩溃进度 0.0 ~ 1.0
+                    let progress = charCount / totalChars;
 
                     let span = document.createElement('span');
                     span.innerText = char;
 
-                    // 根据进度定义压力等级
                     let stressLevel = 0;
                     if (progress > 0.25) stressLevel = 1; // 疑惑
                     if (progress > 0.45) stressLevel = 2; // 惊恐颤抖
@@ -431,7 +447,6 @@
                     let delay = 50;
                     let pitch = 800;
 
-                    // 动态应用 CSS 与 打字延迟
                     if (stressLevel === 1) {
                         delay = 70 + Math.random() * 40;
                         if (Math.random() > 0.8) { span.classList.add('glitch-active'); span.style.color = "#ffaaaa"; }
@@ -461,13 +476,11 @@
 
                     p.appendChild(span);
 
-                    // 标点符号不发声
                     if (char !== ' ' && char !== '。' && char !== '？' && char !== '！' && char !== '，' && char !== '…' && char !== '—') {
                         playBeep(pitch + Math.random()*100, 0.02 + stressLevel * 0.015);
                     }
                     terminal.scrollTop = terminal.scrollHeight;
 
-                    // 遇到标点符号时，随着崩溃等级拉长停顿时间，营造窒息感
                     if (['！', '？', '，', '。', '、', '…', '—'].includes(char)) {
                         delay += 200 + stressLevel * 300;
                     }
@@ -485,7 +498,6 @@
             "“哦——我明白了！观测对象虽然是异常空域，但是，但是观测只能依附于外部思维和实体行动的介入...也就是——你，你不是观测局的吧，你应该是...是观测局特意调到特定频率后接入的...真正的观测实体？？？那我呢？我难道只是观测局流放到异常空域，来跟实体对接的，耗材？还是……诱——”"
         ]);
 
-        // 特工话音未落，瞬间抹杀
         playBeep(100, 1.5);
         document.body.classList.add('glitch-active'); document.body.style.backgroundColor = "#000";
         await new Promise(r => setTimeout(r, 800)); document.body.classList.remove('glitch-active');
