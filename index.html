@@ -140,7 +140,7 @@
     }
 
     // ==========================================
-    // 状态管理与防闪退超级历史锚点 (终极修复版)
+    // 状态管理与防闪退超级历史锚点
     // ==========================================
     let phase = sessionStorage.getItem('phase') || 'start';
     let inventory = JSON.parse(sessionStorage.getItem('inventory') || '[]');
@@ -170,6 +170,7 @@
         } else if (phase === 'be') {
             recoverFromBE();
         } else if (phase === 'ready_to_end') {
+            // 【核心修复】：玩家不听话强行刷新，不会闪退崩溃，而是会收到警告！
             document.getElementById('start-btn').style.display = 'none';
             terminal.style.display = 'block';
             injectHistoryTrap(); 
@@ -177,18 +178,12 @@
         }
     };
 
-    // 强力历史记录注入：动态分配独立 Hash，彻底粉碎夸克等浏览器的去重优化
     function injectHistoryTrap() {
-        let ts = new Date().getTime();
-        for(let i=0; i<5; i++) {
-            history.pushState({ trap: i }, "", "#lock_" + ts + "_" + i);
+        if(window.location.hash !== "#play") {
+            window.location.hash = "play"; 
         }
+        for(let i=0; i<10; i++) history.pushState({ trap: i }, "", window.location.href);
     }
-
-    // 额外补丁：针对零交互拦截失效的情况，在手指试图侧滑触碰屏幕的瞬间补签一条历史
-    document.addEventListener('touchstart', () => {
-        history.pushState({ trap: 'touch' }, "", "#lock_touch_" + new Date().getTime());
-    }, { once: true, passive: true });
 
     function initGame() {
         audioCtx.resume();
@@ -207,7 +202,7 @@
 
     // 监听返回键 / 侧滑手势
     window.onpopstate = async (event) => {
-        history.pushState({ trap: 99 }, "", "#lock_pop_" + new Date().getTime()); 
+        history.pushState({ trap: 99 }, "", window.location.href); 
         
         if (phase === 'be') {
             recoverFromBE();
@@ -353,6 +348,7 @@
                     document.getElementById('btn-logic').onclick = async () => {
                         document.getElementById('use-btns').style.display = 'none';
                         
+                        // 【核心BUG彻底修复】：瞬间写入状态，防止玩家读得太快提前按侧滑返回！
                         phase = 'ready_to_end';
                         sessionStorage.setItem('phase', 'ready_to_end');
                         
@@ -443,10 +439,10 @@
                     span.innerText = char;
 
                     let stressLevel = 0;
-                    if (progress > 0.25) stressLevel = 1; 
-                    if (progress > 0.45) stressLevel = 2; 
-                    if (progress > 0.75) stressLevel = 3; 
-                    if (progress > 0.90) stressLevel = 4; 
+                    if (progress > 0.25) stressLevel = 1; // 疑惑
+                    if (progress > 0.45) stressLevel = 2; // 惊恐颤抖
+                    if (progress > 0.75) stressLevel = 3; // 崩溃变大变红
+                    if (progress > 0.90) stressLevel = 4; // 极度停滞、深红乱跳
 
                     let delay = 50;
                     let pitch = 800;
@@ -469,7 +465,7 @@
                         span.style.display = "inline-block";
                         span.style.transform = `translate(${Math.random()*2-1}px, ${Math.random()*2-1}px) rotate(${Math.random()*6 - 3}deg)`;
                     } else if (stressLevel === 4) {
-                        delay = 300 + Math.random() * 400; 
+                        delay = 300 + Math.random() * 400; // 停滞的时间极度拉长
                         pitch = 200;
                         span.classList.add('glitch-heavy');
                         span.style.fontSize = (20 + Math.random() * 14) + 'px';
@@ -494,6 +490,7 @@
             }
         }
 
+        // 调用专属打字机，执行文本恐怖演化
         await typeBreakdownLines([
             "“等等，为什么，为什么没有观测局的返航通道？”",
             "“你不是救援队的吗，你不是有权限吗，为什么打不开？？？”",
