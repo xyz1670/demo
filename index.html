@@ -22,7 +22,7 @@
         .sys-msg { color: var(--text-sys); font-weight: bold; text-shadow: 0 0 5px rgba(255, 51, 51, 0.5); }
         .agent-msg { color: #fff; text-shadow: 0 0 5px rgba(255, 255, 255, 0.5); }
         .dim-msg { color: #888; text-shadow: none; }
-
+        
         #interactive-area {
             width: 100%; max-width: 600px; height: 45vh; border: 1px solid rgba(0, 255, 65, 0.3);
             position: relative; display: none; justify-content: center; align-items: center;
@@ -31,7 +31,7 @@
 
         /* Node 1: 3D 镂空球体 */
         #scene-3d {
-            width: 100%; height: 100%; position: relative; transform-style: preserve-3d;
+            width: 100%; height: 100%; position: relative; transform-style: preserve-3d; 
             transition: transform 0.1s ease-out; display: flex; justify-content: center; align-items: center;
         }
         #sphere-container {
@@ -71,7 +71,7 @@
             display: flex; flex-direction: column; justify-content: center; align-items: center;
             width: 100%; height: 100%; padding: 20px; box-sizing: border-box; z-index: 101; pointer-events: none;
         }
-
+        
         .btn-group { position: absolute; bottom: 30px; display: flex; gap: 10px; z-index: 50; display: none; }
         .action-btn { background: #000; border: 1px solid var(--text-main); color: var(--text-main); padding: 10px; font-family: var(--font); cursor: pointer; }
         .action-btn.danger { border-color: var(--text-sys); color: var(--text-sys); }
@@ -80,7 +80,7 @@
         .glitch-heavy { animation: glitchHeavy 0.05s infinite; color: var(--text-sys) !important;}
         @keyframes glitch { 0% { transform: translate(0); } 25% { transform: translate(-2px, 2px); } 75% { transform: translate(2px, -2px); } 100% { transform: translate(0); } }
         @keyframes glitchHeavy { 0% { transform: translate(0); } 20% { transform: translate(-8px, 8px); } 40% { transform: translate(8px, -10px); } 60% { transform: translate(-10px, 8px); } 80% { transform: translate(10px, -8px); } 100% { transform: translate(0); } }
-
+        
         #start-btn {
             padding: 15px 30px; background: transparent; border: 1px solid var(--text-main);
             color: var(--text-main); cursor: pointer; margin-top: 35vh; font-family: var(--font); font-size: 16px;
@@ -89,28 +89,28 @@
 </head>
 <body>
 
-<button id="start-btn">[ 接入频段 & 初始化观测协议 ]</button>
-<div id="terminal" style="display:none;"></div>
-
-<div id="interactive-area">
-    <div id="inventory">已提取协议：<br><span id="inv-list">无</span></div>
-    <div id="scene-3d" style="display:none;">
-        <div id="hidden-password">Z-AXIS</div>
-        <div id="sphere-container">
-            <div class="ring"></div>
-            <div class="ring"></div>
-            <div class="ring"></div>
-            <div class="ring"></div>
+    <button id="start-btn">[ 接入频段 & 初始化观测协议 ]</button>
+    <div id="terminal" style="display:none;"></div>
+    
+    <div id="interactive-area">
+        <div id="inventory">已提取协议：<br><span id="inv-list">无</span></div>
+        <div id="scene-3d" style="display:none;">
+            <div id="hidden-password">Z-AXIS</div>
+            <div id="sphere-container">
+                <div class="ring"></div>
+                <div class="ring"></div>
+                <div class="ring"></div>
+                <div class="ring"></div>
+            </div>
+            <input type="text" id="n1-input" placeholder="输入底层坐标..." autocomplete="off">
         </div>
-        <input type="text" id="n1-input" placeholder="输入底层坐标..." autocomplete="off">
+        <div class="btn-group" id="use-btns">
+            <button class="action-btn" id="btn-logic" style="display:none;">注入 [0x8逻辑权限]</button>
+            <button class="action-btn danger" id="btn-poison" style="display:none;">注入 [d熵增毒剂]</button>
+        </div>
     </div>
-    <div class="btn-group" id="use-btns">
-        <button class="action-btn" id="btn-logic" style="display:none;">注入 [0x8逻辑权限]</button>
-        <button class="action-btn danger" id="btn-poison" style="display:none;">注入 [d熵增毒剂]</button>
-    </div>
-</div>
-
-<div id="outro-screen"></div>
+    
+    <div id="outro-screen"></div>
 
 <script>
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -127,7 +127,7 @@
 
     const terminal = document.getElementById('terminal');
     const interactiveArea = document.getElementById('interactive-area');
-
+    
     async function typeText(text, className = "", speed = 40) {
         const p = document.createElement('p'); p.className = className; terminal.appendChild(p);
         for (let i = 0; i < text.length; i++) {
@@ -140,7 +140,7 @@
     }
 
     // ==========================================
-    // 状态管理与防闪退超级历史锚点
+    // 状态管理与防闪退超级历史锚点 (终极修复版)
     // ==========================================
     let phase = sessionStorage.getItem('phase') || 'start';
     let inventory = JSON.parse(sessionStorage.getItem('inventory') || '[]');
@@ -165,29 +165,34 @@
         } else if (phase === 'maze') {
             document.getElementById('start-btn').style.display = 'none';
             terminal.style.display = 'block';
-            injectHistoryTrap();
+            injectHistoryTrap(); 
             runTimelineMaze(currentTL);
         } else if (phase === 'be') {
             recoverFromBE();
         } else if (phase === 'ready_to_end') {
-            // 【核心修复】：玩家不听话强行刷新，不会闪退崩溃，而是会收到警告！
             document.getElementById('start-btn').style.display = 'none';
             terminal.style.display = 'block';
-            injectHistoryTrap();
+            injectHistoryTrap(); 
             wrongWayReload();
         }
     };
 
+    // 强力历史记录注入：动态分配独立 Hash，彻底粉碎夸克等浏览器的去重优化
     function injectHistoryTrap() {
-        if(window.location.hash !== "#play") {
-            window.location.hash = "play";
+        let ts = new Date().getTime();
+        for(let i=0; i<5; i++) {
+            history.pushState({ trap: i }, "", "#lock_" + ts + "_" + i);
         }
-        for(let i=0; i<10; i++) history.pushState({ trap: i }, "", window.location.href);
     }
+
+    // 额外补丁：针对零交互拦截失效的情况，在手指试图侧滑触碰屏幕的瞬间补签一条历史
+    document.addEventListener('touchstart', () => {
+        history.pushState({ trap: 'touch' }, "", "#lock_touch_" + new Date().getTime());
+    }, { once: true, passive: true });
 
     function initGame() {
         audioCtx.resume();
-        injectHistoryTrap();
+        injectHistoryTrap(); 
         if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
             DeviceOrientationEvent.requestPermission().then(state => {
                 if (state === 'granted') window.addEventListener('deviceorientation', handleOrientation);
@@ -202,8 +207,8 @@
 
     // 监听返回键 / 侧滑手势
     window.onpopstate = async (event) => {
-        history.pushState({ trap: 99 }, "", window.location.href);
-
+        history.pushState({ trap: 99 }, "", "#lock_pop_" + new Date().getTime()); 
+        
         if (phase === 'be') {
             recoverFromBE();
         } else if (phase === 'ready_to_end') {
@@ -215,10 +220,10 @@
 
     // --- 在通往结局前刷新的惩罚 ---
     async function wrongWayReload() {
-        document.body.classList.add('glitch-active');
-        await new Promise(r => setTimeout(r, 400));
+        document.body.classList.add('glitch-active'); 
+        await new Promise(r => setTimeout(r, 400)); 
         document.body.classList.remove('glitch-active');
-
+        
         await typeText("【系统警告：正向演化已锁死】", "sys-msg");
         await typeText("“你在干什么？！为什么还要重置？！”", "agent-msg");
         await typeText("“通道的入口在刚才的过去！不能再重置了，带着权限，赶紧【往回走】！”", "agent-msg");
@@ -237,11 +242,11 @@
     // --- 节点 1：3D 镂空球体 & 陀螺仪 ---
     const scene = document.getElementById('scene-3d');
     let baseBeta = null, baseGamma = null;
-
+    
     function handleOrientation(e) {
         if(scene.style.display === 'none') return;
-        if(baseBeta === null) { baseBeta = e.beta; baseGamma = e.gamma; }
-        let bDiff = (e.beta - baseBeta) * 2; let gDiff = (e.gamma - baseGamma) * 2.5;
+        if(baseBeta === null) { baseBeta = e.beta; baseGamma = e.gamma; } 
+        let bDiff = (e.beta - baseBeta) * 2; let gDiff = (e.gamma - baseGamma) * 2.5; 
         if(bDiff > 70) bDiff = 70; if(bDiff < -70) bDiff = -70;
         if(gDiff > 70) gDiff = 70; if(gDiff < -70) gDiff = -70;
         scene.style.transform = `rotateY(${gDiff}deg) rotateX(${-bDiff}deg)`;
@@ -250,7 +255,7 @@
     function startNode1() {
         interactiveArea.style.display = 'flex';
         scene.style.display = 'flex';
-
+        
         let rotX = 0, rotY = 0, isDragging = false, startX, startY;
         interactiveArea.addEventListener('mousedown', e => { isDragging = true; startX = e.clientX - rotY*3; startY = e.clientY + rotX*3; });
         interactiveArea.addEventListener('mousemove', e => {
@@ -267,12 +272,12 @@
         input.oninput = async (e) => {
             if(e.target.value.toUpperCase() === 'Z-AXIS') {
                 input.disabled = true; scene.style.display = 'none';
-
-                phase = 'maze';
+                
+                phase = 'maze'; 
                 sessionStorage.setItem('phase', 'maze');
-                currentTL = timelines[Math.floor(Math.random() * timelines.length)];
+                currentTL = timelines[Math.floor(Math.random() * timelines.length)]; 
                 sessionStorage.setItem('tl', currentTL);
-
+                
                 await typeText("“坐标突破！但是……这片空域的时间轴是完全死锁的。”", "agent-msg");
                 playBeep(200, 1); document.body.classList.add('glitch-active');
                 await new Promise(r => setTimeout(r, 400)); document.body.classList.remove('glitch-active');
@@ -334,24 +339,23 @@
             case '13': // The Exit
                 body.style.backgroundColor = "#002a00"; body.style.color = "#55ff55";
                 await typeText("【平行时间线 13 - 逃生通道】", "sys-msg");
-
+                
                 if(!inventory.includes('404视界滤镜')) {
                     await typeText("“系统显示出口就在这里！但我什么都看不到。我们需要能观测高维结构的介质。”", "agent-msg");
                 } else {
                     await typeText("“出口大门出现了！它锁死了。需要注入底层的权限协议！”", "agent-msg");
                     document.getElementById('use-btns').style.display = 'flex';
-
+                    
                     if(inventory.includes('0x8逻辑权限')) document.getElementById('btn-logic').style.display = 'block';
                     if(inventory.includes('d熵增毒剂')) document.getElementById('btn-poison').style.display = 'block';
-
+                    
                     document.getElementById('btn-poison').onclick = triggerBadEnding;
                     document.getElementById('btn-logic').onclick = async () => {
                         document.getElementById('use-btns').style.display = 'none';
-
-                        // 【核心BUG彻底修复】：瞬间写入状态，防止玩家读得太快提前按侧滑返回！
+                        
                         phase = 'ready_to_end';
                         sessionStorage.setItem('phase', 'ready_to_end');
-
+                        
                         await typeText("【0x8权限注入。通道强制开启。】", "sys-msg");
                         await typeText("“通道开了！但是……坐标不对！”", "agent-msg");
                         await typeText("“正确的出口坐标，遗留在了『0 - 原初锚点』里！”", "agent-msg");
@@ -365,17 +369,17 @@
     // --- BE 结局：坏掉的重置 ---
     async function triggerBadEnding() {
         document.getElementById('use-btns').style.display = 'none';
-
+        
         phase = 'be';
         sessionStorage.setItem('phase', 'be');
-
+        
         terminal.innerHTML = "";
         document.body.className = "glitch-heavy";
-
+        
         await typeText("【警告：检测到 d 级熵增毒剂注入】", "sys-msg", 10);
         await typeText("“你在干什么？！你注入了什么？！”", "agent-msg", 10);
         await typeText("“空域在坍缩……我的身体……不不不不……”", "agent-msg", 10);
-
+        
         let panicWords = ["错误", "坍缩", "救命", "为什么", "好痛", "数据溢出"];
         for(let i=0; i<30; i++) {
             let p = document.createElement('span');
@@ -387,7 +391,7 @@
             playBeep(200 + Math.random()*2000, 0.05);
             await new Promise(r => setTimeout(r, 50));
         }
-
+        
         await typeText("\n\n“我们走错了……你走得太远了……必x.. 必须... 重.. 重置 …重置…重置.... 重置.”", "agent-msg", 50);
         await typeText("【系统提示：时间线严重污染。利用外部手段重置】", "dim-msg", 50);
     }
@@ -397,11 +401,11 @@
         terminal.style.display = 'block';
         document.body.className = "glitch-active";
         await typeText("正在从污染的历史记录中恢复……", "sys-msg");
-
-        setTimeout(() => {
+        
+        setTimeout(() => { 
             phase = 'maze';
-            sessionStorage.setItem('phase', 'maze');
-            window.location.reload();
+            sessionStorage.setItem('phase', 'maze'); 
+            window.location.reload(); 
         }, 1500);
     }
 
@@ -410,15 +414,15 @@
         document.body.className = "";
         document.getElementById('interactive-area').style.display = 'none';
         terminal.innerHTML = "";
-
-        document.body.style.backgroundColor = "#ffffff";
-        playBeep(800, 0.5);
+        
+        document.body.style.backgroundColor = "#ffffff"; 
+        playBeep(800, 0.5); 
         await new Promise(r => setTimeout(r, 150));
-        document.body.style.backgroundColor = "#111111";
-
+        document.body.style.backgroundColor = "#111111"; 
+        
         await typeText("“权限验证通过！原初坐标对接完成！空域屏障解体了！太好了，我终于得救了！”", "agent-msg");
         await new Promise(r => setTimeout(r, 600));
-
+        
         // 专门为最后四句台词定制的“崩坏打字机”函数
         async function typeBreakdownLines(lines) {
             let totalChars = lines.join("").length;
@@ -433,16 +437,16 @@
                 for (let i = 0; i < text.length; i++) {
                     let char = text.charAt(i);
                     charCount++;
-                    let progress = charCount / totalChars;
+                    let progress = charCount / totalChars; 
 
                     let span = document.createElement('span');
                     span.innerText = char;
 
                     let stressLevel = 0;
-                    if (progress > 0.25) stressLevel = 1; // 疑惑
-                    if (progress > 0.45) stressLevel = 2; // 惊恐颤抖
-                    if (progress > 0.75) stressLevel = 3; // 崩溃变大变红
-                    if (progress > 0.90) stressLevel = 4; // 极度停滞、深红乱跳
+                    if (progress > 0.25) stressLevel = 1; 
+                    if (progress > 0.45) stressLevel = 2; 
+                    if (progress > 0.75) stressLevel = 3; 
+                    if (progress > 0.90) stressLevel = 4; 
 
                     let delay = 50;
                     let pitch = 800;
@@ -465,7 +469,7 @@
                         span.style.display = "inline-block";
                         span.style.transform = `translate(${Math.random()*2-1}px, ${Math.random()*2-1}px) rotate(${Math.random()*6 - 3}deg)`;
                     } else if (stressLevel === 4) {
-                        delay = 300 + Math.random() * 400; // 停滞的时间极度拉长
+                        delay = 300 + Math.random() * 400; 
                         pitch = 200;
                         span.classList.add('glitch-heavy');
                         span.style.fontSize = (20 + Math.random() * 14) + 'px';
@@ -486,11 +490,10 @@
                     }
                     await new Promise(r => setTimeout(r, delay));
                 }
-                await new Promise(r => setTimeout(r, 600));
+                await new Promise(r => setTimeout(r, 600)); 
             }
         }
 
-        // 调用专属打字机，执行文本恐怖演化
         await typeBreakdownLines([
             "“等等，为什么，为什么没有观测局的返航通道？”",
             "“你不是救援队的吗，你不是有权限吗，为什么打不开？？？”",
@@ -501,16 +504,16 @@
         playBeep(100, 1.5);
         document.body.classList.add('glitch-active'); document.body.style.backgroundColor = "#000";
         await new Promise(r => setTimeout(r, 800)); document.body.classList.remove('glitch-active');
-
+        
         terminal.style.display = 'none';
         const outro = document.getElementById('outro-screen');
         outro.style.display = 'block';
-
-        sessionStorage.clear();
+        
+        sessionStorage.clear(); 
 
         let clickHorrorCount = 0;
         let horrorRed = 50;
-
+        
         const initialHint = document.createElement('div');
         initialHint.innerText = "【本次会话永久归档】";
         initialHint.style.position = 'absolute';
@@ -520,12 +523,12 @@
         outro.appendChild(initialHint);
 
         outro.addEventListener('click', function horrorClick(e) {
-            if(clickHorrorCount > 18) return;
-            if(clickHorrorCount === 0) initialHint.remove();
+            if(clickHorrorCount > 18) return; 
+            if(clickHorrorCount === 0) initialHint.remove(); 
 
             clickHorrorCount++;
             horrorRed += 10;
-
+            
             const text = document.createElement('div');
             text.innerText = "【本次会话永久归档】";
             text.style.position = 'absolute';
@@ -537,17 +540,17 @@
             text.style.transform = `rotate(${Math.random()*20 - 10}deg)`;
             text.classList.add(clickHorrorCount > 10 ? 'glitch-heavy' : 'glitch-active');
             outro.appendChild(text);
-
+            
             playBeep(100 + Math.random()*300, 0.1);
-
+            
             if (clickHorrorCount > 18) {
                 outro.removeEventListener('click', horrorClick);
                 setTimeout(() => {
                     document.body.style.backgroundColor = "#fff";
                     setTimeout(() => {
                         document.body.style.backgroundColor = "#000";
-                        outro.innerHTML = "";
-                        outro.style.display = 'flex';
+                        outro.innerHTML = ""; 
+                        outro.style.display = 'flex'; 
                         playBeep(400, 1.5);
                         showOfficialEnding();
                     }, 400);
@@ -562,7 +565,7 @@
         document.getElementById('outro-screen').appendChild(reportArea);
 
         async function typeOfficialText(text, color, delay=40) {
-            const p = document.createElement('p');
+            const p = document.createElement('p'); 
             p.style.color = color; p.style.fontFamily = "var(--font)"; p.style.margin = "10px 0";
             reportArea.appendChild(p);
             for (let i = 0; i < text.length; i++) {
